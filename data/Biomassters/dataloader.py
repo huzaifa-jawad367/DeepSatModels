@@ -1,5 +1,7 @@
 # dataloader.py
 
+import argparse
+import os
 import pandas as pd
 from pathlib import Path
 import numpy as np
@@ -7,6 +9,7 @@ import torch
 from torch.utils.data import Dataset, DataLoader
 import torch.utils.data.distributed
 from skimage import io
+import torch.distributed as dist
 
 from data_transforms import calculate_veg_indices_uint8, train_aug
 
@@ -146,99 +149,164 @@ def get_distributed_dataloader(df, dir_features, dir_labels=None,
 
 
 if __name__ == "__main__":
-    # This is a test block to demonstrate how to use the SatImDataset and get_dataloader.
+    import argparse
+    import os
+    from pathlib import Path
 
-    # The project root is 4 levels up from this script.
-    # biomassters/DeepSatModels/data/Biomassters/dataloader.py
+    import pandas as pd
+    import torch
+    import torch.distributed as dist
+
+    # -----------------------
+    # 1) PARSE ARGS & DDP SETUP
+    # -----------------------
+    parser = argparse.ArgumentParser(
+        description="Test SatImDataset + (Distributed) DataLoader"
+    )
+    parser.add_argument(
+        "--batch-size", type=int, default=4, help="per-GPU batch size"
+    )
+    parser.add_argument(
+        "--num-workers", type=int, default=0, help="DataLoader num_workers"
+    )
+    parser.add_argument(
+        "--distributed",
+        action="store_true",
+        help="use torch.distributed data loaders",
+    )
+    parser.add_argument(
+        "--backend",
+        type=str,
+        default="nccl",
+        help="torch.distributed backend",
+    )
+    parser.add_argument(
+        "--local_rank",
+        type=int,
+        default=int(os.environ.get("LOCAL_RANK", 0)),
+        help="rank of this process (set by torchrun)",
+    )
+    args = parser.parse_args()
+
+    if args.distributed:
+        dist.init_process_group(backend=args.backend, init_method="env://")
+        torch.cuda.set_device(args.local_rank)
+        print(f"[GPU {args.local_rank}] Initialized DDP (world size = {dist.get_world_size()})")
+
+    device = torch.device(
+        f"cuda:{args.local_rank}" if torch.cuda.is_available() else "cpu"
+    )
+    print(f"Running on device: {device}")
+
+    # -----------------------
+    # 2) LOCATE DATA + READ META
+    # -----------------------
     project_root = Path(__file__).resolve().parents[3]
-
-    # As per user instruction:
-    # metadata: data/features_metadata.csv
-    # train_features: data/train_feature/train_features
-    # train_agbm: data/train_agbm/train_agbm
-    # test_features: data/test_features/test_features
-    # test_agbm: data/test_agbm/test_agbm
-
     features_metadata_path = project_root / "data" / "features_metadata.csv"
     train_dir_features = project_root / "data" / "train_feature" / "train_features"
     train_dir_labels = project_root / "data" / "train_agbm" / "train_agbm"
     test_dir_features = project_root / "data" / "test_features" / "test_features"
 
-    # Read metadata
     metadata = pd.read_csv(features_metadata_path)
-
-    # We assume there is a 'split' column in the metadata.
     try:
         train_df = metadata[metadata.split == "train"].copy()
         test_df = metadata[metadata.split == "test"].copy()
-        print(f"Found {len(train_df)} training samples and {len(test_df)} test samples.")
-    except (AttributeError, KeyError):
-        # If there is no 'split' column, let's assume the whole file is for training for this test.
-        print("No 'split' column in metadata, using the whole file for training set test.")
-        train_df = metadata
-        test_df = pd.DataFrame(columns=metadata.columns)  # empty df for test
+    except (KeyError, AttributeError):
+        train_df = metadata.copy()
+        test_df = pd.DataFrame(columns=metadata.columns)
 
-    # --- Test Training Dataset ---
-    print("\n--- Testing Training Dataset ---")
-    if not train_df.empty:
-        train_dataset = SatImDataset(
+    print(f"Found {len(train_df)} training samples, {len(test_df)} test samples.")
+
+    # -----------------------
+    # 3) TEST TRAINING DATASET & DATALOADER
+    # -----------------------
+    if len(train_df):
+        print("\n--- TRAINING SET ---")
+        # sample-level test
+        ds = SatImDataset(
             df=train_df,
             dir_features=train_dir_features,
             dir_labels=train_dir_labels,
             augs=True,
             veg_indices=False,
         )
-        print(f"Train dataset length: {len(train_dataset)}")
-        print("Getting a sample from the training dataset...")
-        imgs, mask, tgt = train_dataset[0]
+        imgs, mask, tgt = ds[0]
+        print(" Sample 0 shapes:", imgs.shape, mask.shape, tgt.shape)
 
-        print("\nSample shapes and types:")
-        print(f"  Images: {imgs.shape}, dtype: {imgs.dtype}")
-        print(f"  Mask: {mask.shape}, dtype: {mask.dtype}")
-        print(f"  Target: {tgt.shape}, dtype: {tgt.dtype}")
+        # choose single‐GPU vs DDP dataloader
+        if args.distributed:
+            loader = get_distributed_dataloader(
+                df=train_df,
+                dir_features=train_dir_features,
+                dir_labels=train_dir_labels,
+                augs=True,
+                veg_indices=False,
+                rank=args.local_rank,
+                world_size=torch.cuda.device_count(),
+                batch_size=args.batch_size,
+                num_workers=args.num_workers,
+                shuffle=False,
+            )
+        else:
+            loader = get_dataloader(
+                df=train_df,
+                dir_features=train_dir_features,
+                dir_labels=train_dir_labels,
+                augs=True,
+                veg_indices=False,
+                batch_size=args.batch_size,
+                num_workers=args.num_workers,
+                shuffle=True,
+            )
 
-        train_loader = get_dataloader(
-            df=train_df, dir_features=train_dir_features, dir_labels=train_dir_labels, batch_size=4, num_workers=0
-        )
-        print("\nGetting a batch from the training dataloader...")
-        imgs_batch, mask_batch, tgt_batch = next(iter(train_loader))
-        print("Batch shapes:")
-        print(f"  Images batch: {imgs_batch.shape}")
-        print(f"  Mask batch: {mask_batch.shape}")
-        print(f"  Target batch: {tgt_batch.shape}")
+        imgs_b, mask_b, tgt_b = next(iter(loader))
+        print(" Batch shapes:", imgs_b.shape, mask_b.shape, tgt_b.shape)
     else:
         print("No training data to test.")
 
-    # --- Test Test Dataset ---
-    print("\n--- Testing Test Dataset ---")
-    if not test_df.empty:
-        # For the test set, labels are not available.
-        test_dataset = SatImDataset(
+    # -----------------------
+    # 4) TEST TEST SET
+    # -----------------------
+    if len(test_df):
+        print("\n--- TEST SET ---")
+        ds = SatImDataset(
             df=test_df,
             dir_features=test_dir_features,
-            dir_labels=None,  # No labels for test set
+            dir_labels=None,
             augs=False,
             veg_indices=False,
         )
-        print(f"Test dataset length: {len(test_dataset)}")
-        print("Getting a sample from the test dataset...")
-        imgs, mask, chip_id = test_dataset[0]
+        imgs, mask, chip_id = ds[0]
+        print(" Sample 0 shapes:", imgs.shape, mask.shape, chip_id)
 
-        print("\nSample shapes and types:")
-        print(f"  Images: {imgs.shape}, dtype: {imgs.dtype}")
-        print(f"  Mask: {mask.shape}, dtype: {mask.dtype}")
-        print(f"  Target (chip_id): {chip_id}")
+        if args.distributed:
+            loader = get_distributed_dataloader(
+                df=test_df,
+                dir_features=test_dir_features,
+                dir_labels=None,
+                augs=False,
+                veg_indices=False,
+                rank=args.local_rank,
+                world_size=torch.cuda.device_count(),
+                batch_size=args.batch_size,
+                num_workers=args.num_workers,
+                shuffle=False,
+            )
+        else:
+            loader = get_dataloader(
+                df=test_df,
+                dir_features=test_dir_features,
+                dir_labels=None,
+                augs=False,
+                veg_indices=False,
+                batch_size=args.batch_size,
+                num_workers=args.num_workers,
+                shuffle=False,
+            )
 
-        test_loader = get_dataloader(
-            df=test_df, dir_features=test_dir_features, dir_labels=None, batch_size=4, num_workers=0, shuffle=False
-        )
-        print("\nGetting a batch from the test dataloader...")
-        imgs_batch, mask_batch, chip_id_batch = next(iter(test_loader))
-        print("Batch shapes:")
-        print(f"  Images batch: {imgs_batch.shape}")
-        print(f"  Mask batch: {mask_batch.shape}")
-        print(f"  Target batch (chip_ids): {len(chip_id_batch)}")
+        imgs_b, mask_b, ids_b = next(iter(loader))
+        print(" Batch shapes:", imgs_b.shape, mask_b.shape, len(ids_b))
     else:
         print("No test data to test.")
 
-    print("\nTest finished successfully!")
+    print("\nAll tests passed!")
