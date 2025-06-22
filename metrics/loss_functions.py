@@ -70,6 +70,10 @@ def get_loss(config, device, reduction='mean'):
     elif loss_config['loss_function'] == 'masked_dice_loss':
         return MaskedDiceLoss(reduction=reduction)
 
+    # RMSE Loss --------------------------------------------------------------------------
+    elif loss_config['loss_function'] == 'rmse':
+        return RMSELoss(reduction=reduction)
+
 
 def per_class_loss(criterion, logits, labels, unk_masks, n_classes):
     class_loss = []
@@ -335,3 +339,15 @@ class FocalLoss(nn.Module):
         else:
             raise ValueError(
                 "FocalLoss: reduction parameter not in list of acceptable values [\"mean\", \"sum\", None]")
+
+class RMSELoss(nn.Module):
+    """
+    Root Mean Squared Error Loss
+    """
+    def __init__(self, reduction='mean'):
+        super(RMSELoss, self).__init__()
+        self.reduction = reduction
+        self.mse = nn.MSELoss(reduction=reduction)
+
+    def forward(self, input, target):
+        return torch.sqrt(self.mse(input, target))
