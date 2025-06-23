@@ -6,13 +6,17 @@ from data.France.data_transforms import France_segmentation_transform
 from data.PASTIS24.dataloader import get_dataloader as get_pastis_dataloader
 from data.PASTIS24.data_transforms import PASTIS_segmentation_transform
 from utils.config_files_utils import get_params_values, read_yaml
+from data.Biomassters.dataloader import get_dataloader as get_biomassters_dataloader
 
 
 DATASET_INFO = read_yaml("data/datasets.yaml")
-
+project_root = Path(__file__).resolve().parents[3]
+features_metadata_path = project_root / "data" / "features_metadata.csv"
+metadata = pd.read_csv(features_metadata_path)
+train_df = metadata[metadata.split == "train"].copy()
+test_df = metadata[metadata.split == "test"].copy()
 
 def get_dataloaders(config):
-
 
     model_config = config['MODEL']
     train_config = config['DATASETS']['train']
@@ -34,11 +38,17 @@ def get_dataloaders(config):
             paths_file=train_config['paths'], root_dir=train_config['base_dir'],
             transform=PASTIS_segmentation_transform(model_config, is_training=True),
             batch_size=train_config['batch_size'], shuffle=True, num_workers=train_config['num_workers'])
+    elif train_config['dataset'] == 'Biomassters':
+        dataloaders['train'] = get_biomassters_dataloader(
+            df=train_df, dir_features=project_root / "data" / "train_feature" / "train_features",
+            dir_labels=project_root / "data" / "train_agbm" / "train_agbm", augs=True, veg_indices=False,
+            batch_size=train_config['batch_size'], shuffle=True, num_workers=train_config['num_workers'])
     else:
         dataloaders['train'] = get_france_dataloader(
             paths_file=train_config['paths'], root_dir=train_config['base_dir'],
             transform=France_segmentation_transform(model_config, train_config, is_training=True),
             batch_size=train_config['batch_size'], shuffle=True, num_workers=train_config['num_workers'])
+    
 
     # EVAL data --------------------------------------------------------------------------------------------------------
     eval_config['base_dir'] = DATASET_INFO[eval_config['dataset']]['basedir']
@@ -52,6 +62,11 @@ def get_dataloaders(config):
         dataloaders['eval'] = get_pastis_dataloader(
             paths_file=eval_config['paths'], root_dir=eval_config['base_dir'],
             transform=PASTIS_segmentation_transform(model_config, is_training=False),
+            batch_size=eval_config['batch_size'], shuffle=False, num_workers=eval_config['num_workers'])
+    elif eval_config['dataset'] == 'Biomassters':
+        dataloaders['test'] = get_biomassters_dataloader(   
+            df=test_df, dir_features=project_root / "data" / "test_feature" / "test_features",
+            dir_labels=project_root / "data" / "test_agbm" / "test_agbm", augs=False, veg_indices=False,
             batch_size=eval_config['batch_size'], shuffle=False, num_workers=eval_config['num_workers'])
     else:
         dataloaders['eval'] = get_france_dataloader(
