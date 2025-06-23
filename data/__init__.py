@@ -8,9 +8,11 @@ from data.PASTIS24.data_transforms import PASTIS_segmentation_transform
 from utils.config_files_utils import get_params_values, read_yaml
 from data.Biomassters.dataloader import get_dataloader as get_biomassters_dataloader
 
+from pathlib import Path
+import pandas as pd
 
 DATASET_INFO = read_yaml("data/datasets.yaml")
-project_root = Path(__file__).resolve().parents[3]
+project_root = Path(__file__).resolve().parents[2]
 features_metadata_path = project_root / "data" / "features_metadata.csv"
 metadata = pd.read_csv(features_metadata_path)
 train_df = metadata[metadata.split == "train"].copy()

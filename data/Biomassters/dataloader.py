@@ -11,7 +11,7 @@ import torch.utils.data.distributed
 from skimage import io
 import torch.distributed as dist
 
-from data_transforms import calculate_veg_indices_uint8, train_aug
+from .data_transforms import calculate_veg_indices_uint8, train_aug
 
 # --- constants for normalization ---
 L = 0.5

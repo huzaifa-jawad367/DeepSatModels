@@ -40,3 +40,9 @@ PASTIS24_fold5:
     paths_eval: ".../fold-paths/fold_3_paths.csv"
     paths_test: ".../fold-paths/fold_4_paths.csv"
 # ------------------------------------------------------------------------------------------------------------------
+
+Biomassters:
+    basedir: "..."
+    paths_train: ".../data/features_metadata.csv"
+    paths_eval: ".../data/features_metadata.csv"
+    paths_test: ".../data/features_metadata.csv"
