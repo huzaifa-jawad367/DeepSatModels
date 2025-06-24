@@ -41,8 +41,11 @@ def get_mean_metrics(logits, labels, n_classes, loss, epoch=0, step=0, unk_masks
     labels = labels.reshape(-1).cpu().numpy()
     if unk_masks is not None:
         unk_masks = unk_masks.reshape(-1).cpu().numpy()
+    # acc, precision, recall, F1, IOU = get_classification_metrics(
+    #     predicted, labels, n_classes, unk_masks)['micro']
+    # loss_ = float(loss.detach().cpu().numpy())
     acc, precision, recall, F1, IOU = get_classification_metrics(
-        predicted, labels, n_classes, unk_masks)['micro']
+        predicted, labels, n_classes, unk_masks=None)['micro']
     loss_ = float(loss.detach().cpu().numpy())
     return {"%sAccuracy" % name: acc, "%sPrecision" % name: precision, "%sRecall" % name: recall,
             "%sF1" % name: F1, "%sIOU" % name: IOU, "%sLoss" % name: loss_}

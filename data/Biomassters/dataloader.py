@@ -122,7 +122,11 @@ class SatImDataset(Dataset):
         if self.augs:
             imgs, mask, tgt = train_aug(imgs, mask, tgt)
 
-        return imgs, mask, tgt
+        return {
+            'inputs': imgs,
+            'unk_masks': mask,
+            'labels': tgt
+        }
 
 
 def get_dataloader(df, dir_features, dir_labels=None,
