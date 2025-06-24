@@ -27,7 +27,7 @@ s1_mm  = s1_max - s1_min
 # ], dtype="float32")
 
 s2_max = np.array(
-    [19616., 18400., 17536., 17097., 16928., 16768., 16593., 16492., 15401., 15226., 255.],
+    [19616., 18400., 17536., 17097., 16928., 16768., 16593., 16492., 15401., 15226., 1., 255.],
     dtype="float32",
 )
 
@@ -71,7 +71,7 @@ def read_imgs(chip_id, data_dir, veg_indices=False):
             
         else:
             if veg_indices:
-                img_s2 = np.zeros(IMG_SIZE + (15,), dtype="float32")
+                img_s2 = np.zeros(IMG_SIZE + (12,), dtype="float32")
             else:
                 img_s2 = np.zeros(IMG_SIZE + (11,), dtype="float32")
 
@@ -110,6 +110,9 @@ class SatImDataset(Dataset):
     def __getitem__(self, idx):
         item = self.df.iloc[idx]
         imgs, mask = read_imgs(item.chip_id, self.dir_features, self.veg_indices)
+
+        # Change imgs from [T, C, H, W] to [T, H, W, C]
+        imgs = np.transpose(imgs, (0, 2, 3, 1))
 
         if self.dir_labels:
             tgt = io.imread(Path(self.dir_labels) / f"{item.chip_id}_agbm.tif")

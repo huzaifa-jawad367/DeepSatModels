@@ -1,0 +1,62 @@
+CHECKPOINT:
+  eval_steps: 4000
+  load_from_checkpoint: null
+  partial_restore: false
+  save_path: models/saved_models/France/TSViT
+  save_steps: 1000000
+  train_metrics_steps: 1000
+DATASETS:
+  eval:
+    base_dir: '...'
+    batch_size: 4
+    bidir_input: false
+    dataset: Biomassters
+    extra_data: null
+    label_map: labels_20k2k
+    max_seq_len: 12
+    num_workers: 4
+    paths: '.../data/features_metadata.csv'
+  train:
+    base_dir: '...'
+    batch_size: 4
+    bidir_input: false
+    dataset: Biomassters
+    extra_data: null
+    label_map: labels_20k2k
+    max_seq_len: 12
+    num_workers: 4
+    paths: '.../data/features_metadata.csv'
+MODEL:
+  architecture: TSViT
+  dim: 128
+  dim_head: 64
+  dropout: 0.0
+  emb_dropout: 0.0
+  heads: 4
+  ignore_background: true
+  img_res: 256
+  max_seq_len: 12
+  num_channels: 16
+  num_classes: 1
+  num_features: 16
+  patch_size: 16
+  pool: cls
+  scale_dim: 4
+  spatial_depth: 4
+  temporal_depth: 8
+SOLVER:
+  class_weights: null
+  loss_function: rmse
+  lr_base: 1e-4
+  lr_min: 5e-6
+  lr_scheduler: cosine
+  lr_start: 1e-8
+  num_cycles: 1
+  num_epochs: 100
+  num_warmup_epochs: 10
+  reset_lr: true
+  steps: (0, 80000)
+  weight_decay: 0.0
+local_device_ids:
+- 0
+- 1

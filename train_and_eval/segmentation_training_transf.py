@@ -25,7 +25,7 @@ def train_and_evaluate(net, dataloaders, config, device, lin_cls=False):
     def train_step(net, sample, loss_fn, optimizer, device, loss_input_fn):
         optimizer.zero_grad()
         # print(sample['inputs'].shape)
-        outputs = net(sample['inputs'].to(device))
+        outputs = net(sample[0].to(device))
         outputs = outputs.permute(0, 2, 3, 1)
         ground_truth = loss_input_fn(sample, device)
         loss = loss_fn['mean'](outputs, ground_truth)
@@ -41,7 +41,7 @@ def train_and_evaluate(net, dataloaders, config, device, lin_cls=False):
         net.eval()
         with torch.no_grad():
             for step, sample in enumerate(evalloader):
-                logits = net(sample['inputs'].to(device))
+                logits = net(sample[0].to(device))
                 logits = logits.permute(0, 2, 3, 1)
                 _, predicted = torch.max(logits.data, -1)
                 ground_truth = loss_input_fn(sample, device)
@@ -140,6 +140,11 @@ def train_and_evaluate(net, dataloaders, config, device, lin_cls=False):
     for epoch in range(start_epoch, start_epoch + num_epochs):  # loop over the dataset multiple times
         for step, sample in enumerate(dataloaders['train']):
             abs_step = start_global + (epoch - start_epoch) * num_steps_train + step
+            print("sample type: ", type(sample))
+            print("sample length: ", len(sample))
+            print("sample 0-2 types: ", type(sample[0]), type(sample[1]), type(sample[2]))
+            print("Tensor shape: ", sample[0].shape, sample[1].shape, sample[2].shape)
+
             logits, ground_truth, loss = train_step(net, sample, loss_fn, optimizer, device, loss_input_fn=loss_input_fn)
             if len(ground_truth) == 2:
                 labels, unk_masks = ground_truth

@@ -43,7 +43,7 @@ def get_dataloaders(config):
     elif train_config['dataset'] == 'Biomassters':
         dataloaders['train'] = get_biomassters_dataloader(
             df=train_df, dir_features=project_root / "data" / "train_feature" / "train_features",
-            dir_labels=project_root / "data" / "train_agbm" / "train_agbm", augs=True, veg_indices=False,
+            dir_labels=project_root / "data" / "train_agbm" / "train_agbm", augs=True, veg_indices=True,
             batch_size=train_config['batch_size'], shuffle=True, num_workers=train_config['num_workers'])
     else:
         dataloaders['train'] = get_france_dataloader(
@@ -68,7 +68,7 @@ def get_dataloaders(config):
     elif eval_config['dataset'] == 'Biomassters':
         dataloaders['test'] = get_biomassters_dataloader(   
             df=test_df, dir_features=project_root / "data" / "test_feature" / "test_features",
-            dir_labels=project_root / "data" / "test_agbm" / "test_agbm", augs=False, veg_indices=False,
+            dir_labels=project_root / "data" / "test_agbm" / "test_agbm", augs=False, veg_indices=True,
             batch_size=eval_config['batch_size'], shuffle=False, num_workers=eval_config['num_workers'])
     else:
         dataloaders['eval'] = get_france_dataloader(
